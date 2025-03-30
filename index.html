@@ -6,7 +6,7 @@
     <title>Metronome</title>
     <link rel="stylesheet" href="css/main.css">
     <script src="//cwilso.github.io/AudioContext-MonkeyPatch/AudioContextMonkeyPatch.js"></script>
-    <script src="js/metronome.js"></script>
+    <script src="js/visualizer.js"></script>
   </head>
   <body>
     <a href="https://github.com/cwilso/metronome" style="position: absolute; top: -5px; right: 15px;">Fork me on GitHub</a>
@@ -14,6 +14,94 @@
       <div><a class="play" onclick="this.innerText = play();">play</a></div>
       <div id="tempoBox">Tempo: <span id="showTempo">120</span>BPM <input id="tempo" type="range" min="30.0" max="160.0" step="1" value="120" style="height: 20px; width: 200px" onInput="tempo = event.target.value; document.getElementById('showTempo').innerText=tempo;"></div>
       <div>Resolution:<select onchange="noteResolution = this.selectedIndex;"><option>16th notes<option>8th notes<option>Quarter notes</select></div>
+      
+      <!-- Three column layout for controls -->
+      <div class="control-columns">
+        <!-- Column 1: Metronome -->
+        <div class="control-column">
+          <h3>Metronome Controls</h3>
+          <div>
+            <label for="metronomeGain">Main Volume:</label>
+            <input id="metronomeGain" type="range" min="0" max="1" step="0.01" value="0.8" style="height: 20px; width: 180px" onInput="updateMetronomeGain(this.value);">
+          </div>
+          <div>
+            <label for="metronomeAnalyzerGain">Analyzer Volume:</label>
+            <input id="metronomeAnalyzerGain" type="range" min="0" max="1" step="0.01" value="0.8" style="height: 20px; width: 180px" onInput="updateMetronomeAnalyzerGain(this.value);">
+          </div>
+          <div>
+            <label for="metronomeDestinationGain">Speaker Volume:</label>
+            <input id="metronomeDestinationGain" type="range" min="0" max="1" step="0.01" value="0.8" style="height: 20px; width: 180px" onInput="updateMetronomeDestinationGain(this.value);">
+          </div>
+        </div>
+        
+        <!-- Column 2: WAV Source -->
+        <div class="control-column">
+          <h3>WAV Source Controls</h3>
+          <div>
+            <label for="megaWavGain">Main Volume:</label>
+            <input id="megaWavGain" type="range" min="0" max="1" step="0.01" value="0.5" style="height: 20px; width: 180px" onInput="updateMegaWavGain(this.value);">
+          </div>
+          <div>
+            <label for="megaWavAnalyzerGain">Analyzer Volume:</label>
+            <input id="megaWavAnalyzerGain" type="range" min="0" max="1" step="0.01" value="0.5" style="height: 20px; width: 180px" onInput="updateMegaWavAnalyzerGain(this.value);">
+          </div>
+          <div>
+            <label for="megaWavDestinationGain">Speaker Volume:</label>
+            <input id="megaWavDestinationGain" type="range" min="0" max="1" step="0.01" value="0.5" style="height: 20px; width: 180px" onInput="updateMegaWavDestinationGain(this.value);">
+          </div>
+        </div>
+        
+        <!-- Column 3: Input Source -->
+        <div class="control-column">
+          <h3>Input Source Controls</h3>
+          <div>
+            <label for="inputSource">Select Input:</label>
+            <select id="inputSource" style="height: 20px; width: 180px" onchange="selectInputSource(this.value, window.audioContext, window.analyzerMixerNode, window.destinationMixerNode);">
+              <option value="">Select an input source</option>
+            </select>
+          </div>
+          <div>
+            <label for="inputGain">Main Volume:</label>
+            <input id="inputGain" type="range" min="0" max="1" step="0.01" value="0.7" style="height: 20px; width: 180px" onInput="updateInputGain(this.value);">
+          </div>
+          <div>
+            <label for="inputAnalyzerGain">Analyzer Volume:</label>
+            <input id="inputAnalyzerGain" type="range" min="0" max="1" step="0.01" value="0.7" style="height: 20px; width: 180px" onInput="updateInputAnalyzerGain(this.value);">
+          </div>
+          <div>
+            <label for="inputDestinationGain">Speaker Volume:</label>
+            <input id="inputDestinationGain" type="range" min="0" max="1" step="0.01" value="0.7" style="height: 20px; width: 180px" onInput="updateInputDestinationGain(this.value);">
+          </div>
+        </div>
+      </div>
+      
+      <!-- Visualizer controls -->
+      <div class="visualizer-controls">
+        <div>
+          <label for="timeSpan">Time Span: <span id="showTimeSpan">1.0</span>s</label>
+          <input id="timeSpan" type="range" min="0.5" max="5.0" step="0.1" value="1.0" style="height: 20px; width: 200px" onInput="updateTimeSpan(this.value);">
+        </div>
+        <div>
+          <button id="gridToggle" onclick="this.innerText = toggleGrid() ? 'Hide Grid' : 'Show Grid'">Show Grid</button>
+          <button id="resamplingToggle" onclick="this.innerText = toggleResampling() ? 'Disable Resampling' : 'Enable Resampling'">Enable Resampling</button>
+        </div>
+      </div>
     </div>
+    <canvas id="visualizer" width="300" height="100" style="width: 100%; height: 300px;"></canvas>
+    <audio id="megaWavAudio" src="mega.wav" preload="auto" style="display: none;"></audio>
+    <script src="js/inputstream.js"></script>
+    <script src="js/metronome.js"></script>
+    <script>
+      window.onload = function() {
+          // Assuming audioContext is initialized elsewhere (e.g., in metronome.js)
+          // and accessible as window.audioContext
+          if (window.audioContext) {
+              populateInputSources(window.audioContext);
+          } else {
+              console.warn('Audio context not yet initialized.  Ensure it is created before calling populateInputSources.');
+          }
+          initMicrophoneButton();
+      };
+    </script>
    </body>
 </html>

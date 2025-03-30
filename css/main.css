@@ -5,10 +5,9 @@
 	margin: 15px;
 }
 
-#controls * {
+#controls > div:not(.control-columns):not(.visualizer-controls) {
 	margin: 5px;
 	display:inline-block;
-	
 }
 
 .play {
@@ -61,4 +60,75 @@ body, html {
 }
 body {
     overflow: auto;
+}
+
+/* Three-column layout for controls */
+.control-columns {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+    margin: 20px 0;
+}
+
+.control-column {
+    flex: 1;
+    margin: 0 10px;
+    padding: 15px;
+    background-color: #f5f5f5;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    display: block;
+}
+
+.control-column h3 {
+    margin-top: 0;
+    color: #378de5;
+    font-size: 18px;
+    text-align: center;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 8px;
+}
+
+.control-column div {
+    display: block;
+    margin: 12px 0;
+}
+
+.control-column label {
+    display: block;
+    font-size: 14px;
+    margin-bottom: 5px;
+}
+
+.visualizer-controls {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #e8f4ff;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.visualizer-controls div {
+    display: block;
+    margin: 10px 0;
+}
+
+button {
+    background-color: #79bbff;
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 14px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+button:hover {
+    background-color: #378de5;
 }

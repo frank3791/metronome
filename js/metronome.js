@@ -19,6 +19,22 @@ var notesInQueue = [];      // the notes that have been put into the web audio,
                             // and may or may not have played yet. {note, time}
 var timerWorker = null;     // The Web Worker used to fire timer messages
 
+// Debug settings
+var DEBUG = true;           // Enable debug mode to log detailed information
+
+// Audio routing variables
+var analyzerMixerNode = null;   // Mixer for analyzer (visualization)
+var destinationMixerNode = null; // Mixer for destination (speakers)
+var metronomeGainNode = null;   // Gain node for metronome
+var metronomeAnalyzerGain = null; // Gain node for metronome to analyzer
+var metronomeDestinationGain = null; // Gain node for metronome to destination
+var analyserNode = null;        // Analyser for visualization
+var visualizerNode = null;      // Reference for visualizer.js
+
+// Make audio context and mixers available globally for other components
+window.audioContext = audioContext;
+window.analyzerMixerNode = analyzerMixerNode;
+window.destinationMixerNode = destinationMixerNode;
 
 // First, let's shim the requestAnimationFrame API, with a setTimeout fallback
 window.requestAnimFrame = window.requestAnimationFrame;
@@ -46,7 +62,8 @@ function scheduleNote( beatNumber, time ) {
 
     // create an oscillator
     var osc = audioContext.createOscillator();
-    osc.connect( audioContext.destination );
+    osc.connect(metronomeGainNode); // Connect to metronome gain node
+    
     if (beatNumber % 16 === 0)    // beat 0 == high pitch
         osc.frequency.value = 880.0;
     else if (beatNumber % 4 === 0 )    // quarter notes = medium pitch
@@ -67,9 +84,85 @@ function scheduler() {
     }
 }
 
+// Function to update metronome gain
+window.updateMetronomeGain = function(value) {
+    if (metronomeGainNode) {
+        metronomeGainNode.gain.value = parseFloat(value);
+        console.log('Metronome main gain updated to:', value);
+    }
+};
+
+// Function to update metronome analyzer gain
+window.updateMetronomeAnalyzerGain = function(value) {
+    if (metronomeAnalyzerGain) {
+        metronomeAnalyzerGain.gain.value = parseFloat(value);
+        console.log('Metronome analyzer gain updated to:', value);
+    }
+};
+
+// Function to update metronome destination gain
+window.updateMetronomeDestinationGain = function(value) {
+    if (metronomeDestinationGain) {
+        metronomeDestinationGain.gain.value = parseFloat(value);
+        console.log('Metronome destination gain updated to:', value);
+    }
+};
+
+function setupAudioNodes() {
+    // Create two separate mixer nodes
+    analyzerMixerNode = audioContext.createGain();
+    analyzerMixerNode.gain.value = 1.0;
+    
+    destinationMixerNode = audioContext.createGain();
+    destinationMixerNode.gain.value = 1.0;
+    
+    // Create analyzer for visualization
+    analyserNode = audioContext.createAnalyser();
+    analyserNode.fftSize = 2048;
+    
+    // Connect mixer routing
+    analyzerMixerNode.connect(analyserNode);       // Analyzer mixer to analyzer
+    destinationMixerNode.connect(audioContext.destination); // Destination mixer to speakers
+    
+    // Set visualizer node to our analyser
+    visualizerNode = analyserNode;
+    window.visualizerNode = visualizerNode; // Expose to global scope for visualizer.js
+    
+    // Create metronome gain nodes (one for each mixer)
+    metronomeGainNode = audioContext.createGain();
+    metronomeGainNode.gain.value = parseFloat(document.getElementById('metronomeGain').value || 0.8);
+    
+    metronomeAnalyzerGain = audioContext.createGain();
+    metronomeAnalyzerGain.gain.value = parseFloat(document.getElementById('metronomeAnalyzerGain').value || 0.8);
+    
+    metronomeDestinationGain = audioContext.createGain();
+    metronomeDestinationGain.gain.value = parseFloat(document.getElementById('metronomeDestinationGain').value || 0.8);
+    
+    // Connect metronome to both mixers
+    metronomeGainNode.connect(metronomeAnalyzerGain);
+    metronomeGainNode.connect(metronomeDestinationGain);
+    metronomeAnalyzerGain.connect(analyzerMixerNode);
+    metronomeDestinationGain.connect(destinationMixerNode);
+    
+    // Initialize wav source from wavsource.js with both mixers
+    if (typeof window.initWavSource === 'function') {
+        window.initWavSource(audioContext, analyzerMixerNode, destinationMixerNode);
+    }
+    
+    // Update global references for other components
+    window.audioContext = audioContext;
+    window.analyzerMixerNode = analyzerMixerNode;
+    window.destinationMixerNode = destinationMixerNode;
+    window.analyserNode = analyserNode; // Make sure the analyzer is globally available
+    
+    console.log("Dual mixer audio routing setup complete");
+}
+
 function play() {
-    if (!audioContext)
+    if (!audioContext) {
         audioContext = new AudioContext();
+        window.audioContext = audioContext; // Make sure it's globally available
+    }
 
     if (!unlocked) {
       // play silent buffer to unlock the audio
@@ -79,27 +172,56 @@ function play() {
       node.start(0);
       unlocked = true;
     }
+    
+    // Set up audio nodes if not already done
+    if (!destinationMixerNode || !analyzerMixerNode) {
+        setupAudioNodes();
+        if (typeof window.setupVisualizer === 'function') {
+            window.setupVisualizer();
+        } else {
+            console.error('setupVisualizer function not found');
+        }
+    }
 
     isPlaying = !isPlaying;
 
     if (isPlaying) { // start playing
         current16thNote = 0;
         nextNoteTime = audioContext.currentTime;
+        
+        // Start metronome
         timerWorker.postMessage("start");
+        
+        // Start mega.wav using wavsource.js
+        if (typeof window.playMegaWav === 'function') {
+            window.playMegaWav();
+        }
+        
         return "stop";
     } else {
+        // Stop metronome
         timerWorker.postMessage("stop");
+        
+        // Stop mega.wav using wavsource.js
+        if (typeof window.stopMegaWav === 'function') {
+            window.stopMegaWav();
+        }
+        
         return "play";
     }
 }
 
 function resetCanvas (e) {
-    // resize the canvas - but remember - this clears the canvas too.
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    //make sure we scroll to the top left.
-    window.scrollTo(0,0); 
+    // Update canvas width to match its display width
+    canvas.width = canvas.offsetWidth;
+    
+    // Also update offscreen canvas width if it exists
+    if (window.offscreenCanvas) {
+        window.offscreenCanvas.width = canvas.width;
+    }
+    
+    // Make sure we scroll to the top left
+    window.scrollTo(0, 0); 
 }
 
 function draw() {
@@ -129,34 +251,67 @@ function draw() {
 }
 
 function init(){
-    var container = document.createElement( 'div' );
+    // Create AudioContext with a user gesture to comply with autoplay policies
+    if (!audioContext) {
+        try {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            console.log('AudioContext created:', audioContext);
+            // Update global reference
+            window.audioContext = audioContext;
+        } catch(e) {
+            console.error('Failed to create AudioContext:', e);
+            alert('Could not create audio context. Please try using a different browser.');
+            return;
+        }
+    }
 
-    container.className = "container";
-    canvas = document.createElement( 'canvas' );
-    canvasContext = canvas.getContext( '2d' );
-    canvas.width = window.innerWidth; 
-    canvas.height = window.innerHeight; 
-    document.body.appendChild( container );
-    container.appendChild(canvas);    
-    canvasContext.strokeStyle = "#ffffff";
-    canvasContext.lineWidth = 2;
-
+    canvas = document.getElementById('visualizer');
+    if (!canvas) {
+        console.error('Visualizer canvas not found');
+        return;
+    }
+    
+    // Set canvas width based on its display width
+    canvas.width = canvas.offsetWidth;
+    canvasContext = canvas.getContext('2d');
+    
     window.onorientationchange = resetCanvas;
     window.onresize = resetCanvas;
 
     requestAnimFrame(draw);    // start the drawing loop.
 
+    // Set up audio routing
+    setupAudioNodes();
+    
+    // Initialize the visualizer
+    if (typeof window.setupVisualizer === 'function') {
+        window.setupVisualizer();
+    } else {
+        console.error('setupVisualizer function not found');
+    }
+
+    // Request microphone permissions from inputstream.js
+    if (typeof window.requestMicrophonePermissionsExplicit === 'function') {
+        window.requestMicrophonePermissionsExplicit();
+    }
+
+    // Add microphone access button from inputstream.js
+    if (typeof window.initMicrophoneButton === 'function') {
+        window.initMicrophoneButton();
+    }
+
     timerWorker = new Worker("js/metronomeworker.js");
 
     timerWorker.onmessage = function(e) {
         if (e.data == "tick") {
-            // console.log("tick!");
             scheduler();
         }
         else
             console.log("message: " + e.data);
     };
     timerWorker.postMessage({"interval":lookahead});
+    
+    console.log('Metronome initialization complete');
 }
 
 window.addEventListener("load", init );
